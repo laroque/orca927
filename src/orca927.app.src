@@ -1,0 +1,12 @@
+{application, orca927,
+ [
+  {description, ""},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {mod, { orca927_app, []}},
+  {env, []}
+ ]}.
