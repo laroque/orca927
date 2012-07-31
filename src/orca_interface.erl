@@ -42,11 +42,19 @@ make_connection(IP, Port) ->
 %% gen_server callbacks
 %%===============================================================
 init(_Args) ->
-  {ok}.
+  {ok, []}.
 
 %%---------------------------------------------------------------
 %% Function: handle_call
 %%---------------------------------------------------------------
+listen() ->
+  receive {tcp, _Port, Data} -> Data after 500 -> timeout end.
+
+%handle_call({get_orca_response}, _From, State) ->
+%  Data = listen(),
+%  io:format(Data),
+%  Reply = ok,
+%  {reply, Reply, State}.
 handle_call(_Request, _From, State) ->
   Reply = ok,
   {reply, Reply, State}.
@@ -63,6 +71,11 @@ handle_cast(_Msg, State) ->
 %%---------------------------------------------------------------
 %% Function: handle_info
 %%---------------------------------------------------------------
+handle_info(hi, State) ->
+  io:format("hey there~n"),
+  {noreply, State};
+handle_info(listen, State) ->
+  receive {tcp, _Port, Data} -> Data after 500 -> timeout end;
 handle_info(_Info, State) ->
   {noreply, State}.
 
