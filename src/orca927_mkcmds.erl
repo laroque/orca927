@@ -1,5 +1,5 @@
 % generates a string to send to ORCA via telnet
--module(orca927).
+-module(orca927_mkcmds).
 -export([orca_make_cmd/4]).
 -export([setUpperDiscriminator/1, setLowerDiscriminator/1, setLtPreset/1, setPresetCtrlReg/0]).
 -export([clearSpectrum/0, startAcquisition/0, stopAcquisition/0, writeSpectrum/1]).
