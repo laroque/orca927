@@ -37,6 +37,7 @@ def take_a_run(filename):
     #save the run
     orca.write('save = [ORMCA927Model writeSpectrum:0 toFile:' + filename + '];')
 
+# If called from the commandline, execute here
 if __name__ == '__main__':
     try:
         take_a_run(*sys.argv[1:])
