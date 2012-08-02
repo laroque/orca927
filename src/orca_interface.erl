@@ -2,6 +2,7 @@
 
 -behaviour(gen_server).
 
+-record(state,{socket}).
 
 %% API
 -export([start_link/0,
@@ -42,7 +43,7 @@ make_connection(IP, Port) ->
 %% gen_server callbacks
 %%===============================================================
 init(_Args) ->
-  {ok, []}.
+  {ok, #state{socket=0}}.
 
 %%---------------------------------------------------------------
 %% Function: handle_call
@@ -62,9 +63,10 @@ handle_call(_Request, _From, State) ->
 %%---------------------------------------------------------------
 %% Function: handle_cast
 %%---------------------------------------------------------------
-handle_cast({make_connection, IP, Port}, State) ->
+handle_cast({make_connection, IP, Port}, _State) ->
   {ok, Socket} = gen_tcp:connect(IP, Port, [binary, {packet, 0}]),
-  ok;
+  Newstate = {socket=Socket},
+  {noreply, Newstate};
 handle_cast(_Msg, State) ->
   {noreply, State}.
 
@@ -75,7 +77,12 @@ handle_info(hi, State) ->
   io:format("hey there~n"),
   {noreply, State};
 handle_info(listen, State) ->
-  receive {tcp, _Port, Data} -> Data after 500 -> timeout end;
+  Data = listen(),%receive {tcp, _Port, Data} -> Data after 500 -> timeout end,
+  listen(),
+  io:format("orca says:~n"),
+  io:format(Data),
+  io:format("~n"),
+  {noreply, State};
 handle_info(_Info, State) ->
   {noreply, State}.
 
