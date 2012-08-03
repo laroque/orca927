@@ -6,11 +6,15 @@
 
 %% API
 -export([start_link/0,
-         make_connection/0,
-         make_connection/2]).
+         make_connection/0, make_connection/1, make_connection/2]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, code_change/3, terminate/2]).
+-export([init/1,
+         handle_call/3,
+         handle_cast/2,
+         handle_info/2,
+         code_change/3,
+         terminate/2]).
 
 -define(SERVER, ?MODULE).
 
@@ -28,13 +32,25 @@ start_link() ->
 %%---------------------------------------------------------------
 %% Function make_connection()
 %% Description: connects to the local instance of ORCA
+%%                              on the default port (4667)
 %%---------------------------------------------------------------
+%%@equiv make_connection("localhost")
 make_connection() ->
-  make_connection("localhost", 4667).
+  make_connection("localhost").
+
+%%---------------------------------------------------------------
+%% Function make_connection(IP)
+%% Description: connects to the instance of ORCA at IP
+%%                              on the default port (4667)
+%%---------------------------------------------------------------
+%%@equiv make_connection(IP, 4667)
+make_connection(IP) ->
+  make_connection(IP, 4667).
 
 %%---------------------------------------------------------------
 %% Function make_connection(IP, Port)
-%% Description: connects to the local instance of ORCA
+%% Description: connects to the instance of ORCA at IP
+%%                              using on port PORT
 %%---------------------------------------------------------------
 make_connection(IP, Port) ->
   gen_server:cast(?SERVER, {make_connection, IP, Port}).
@@ -65,7 +81,7 @@ handle_call(_Request, _From, State) ->
 %%---------------------------------------------------------------
 handle_cast({make_connection, IP, Port}, _State) ->
   {ok, Socket} = gen_tcp:connect(IP, Port, [binary, {packet, 0}]),
-  Newstate = {socket=Socket},
+  Newstate = #state{socket=Socket},
   {noreply, Newstate};
 handle_cast(_Msg, State) ->
   {noreply, State}.
@@ -78,7 +94,7 @@ handle_info(hi, State) ->
   {noreply, State};
 handle_info(listen, State) ->
   Data = listen(),%receive {tcp, _Port, Data} -> Data after 500 -> timeout end,
-  listen(),
+  %listen(),
   io:format("orca says:~n"),
   io:format(Data),
   io:format("~n"),
