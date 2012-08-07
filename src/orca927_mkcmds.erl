@@ -5,18 +5,26 @@
 -export([clearSpectrum/0, startAcquisition/0, stopAcquisition/0, writeSpectrum/1]).
 -export([setComment/1]).
 
+%don't actually export these once it is debugged.
+-export([unpack_arg_list/1]).
+
 orca_make_cmd(TagString, Module, Method, Argslist)->
-    {"send", lists:concat([TagString, " = [", Module," ",
-          unpack_arg_list(Method), unpack_arg_list(Argslist),"]"])}.
+%    Mthd=unpack_arg_list(Method),
+%    Args=unpack_arg_list(Argslist),
+    Result={"send", lists:concat([TagString, " = [", Module," ",
+           unpack_arg_list(Method), unpack_arg_list(Argslist),"]"])},
+    Result.
 
 unpack_arg_list(Arglist)->
-    (unpack_arg_list(Arglist,[])).
+    unpack_arg_list(Arglist,[]).
 
+unpack_arg_list([{}],Acc)->
+    lists:reverse(Acc);
 unpack_arg_list([],Acc)->
     lists:reverse(Acc);
 unpack_arg_list([{Name,Value}|T],Acc)->
     Str = lists:concat([Name,":",Value," "]),
-    unpack_arg_list(T,[<<Str>> | Acc]).
+    unpack_arg_list(T,[Str | Acc]).
 
 % ORCA methods%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

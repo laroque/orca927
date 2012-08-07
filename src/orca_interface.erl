@@ -82,6 +82,7 @@ handle_call(_Request, _From, State) ->
 handle_cast({make_connection, IP, Port}, _State) ->
   {ok, Socket} = gen_tcp:connect(IP, Port, [binary, {packet, 0}]),
   Newstate = #state{socket=Socket},
+  io:format("~p~n",[Socket]),
   {noreply, Newstate};
 handle_cast(_Msg, State) ->
   {noreply, State}.
@@ -92,13 +93,12 @@ handle_cast(_Msg, State) ->
 handle_info(hi, State) ->
   io:format("hey there~n"),
   {noreply, State};
-handle_info(listen, State) ->
-  Data = listen(),%receive {tcp, _Port, Data} -> Data after 500 -> timeout end,
-  %listen(),
-  io:format("orca says:~n"),
-  io:format(Data),
-  io:format("~n"),
+handle_info(listen, #state{socket=Soc}=State) ->
+  gen_tcp:send(Soc, "[ORMCA927Model setUpperDiscriminator:0 withValue:1000"),
+  io:format("with state:~p~n",[State]),
   {noreply, State};
+handle_info(setULD, #state{socket=Soc}=State) ->
+  gen_tcp:send(Soc, orca927_mkcmds:setUpperDiscriminator(16000));
 handle_info(_Info, State) ->
   {noreply, State}.
 
