@@ -93,13 +93,16 @@ handle_cast(_Msg, State) ->
 handle_info(hi, State) ->
   io:format("hey there~n"),
   {noreply, State};
-handle_info(listen, #state{socket=Soc}=State) ->
-  gen_tcp:send(Soc, "[ORMCA927Model setUpperDiscriminator:0 withValue:1000"),
+handle_info(hardset, #state{socket=Soc}=State) ->
+  gen_tcp:send(Soc, "hdset=[ORMCA927Model setUpperDiscriminator:0 withValue:1000"),
   io:format("with state:~p~n",[State]),
   {noreply, State};
 handle_info(setULD, #state{socket=Soc}=State) ->
   gen_tcp:send(Soc, orca927_mkcmds:setUpperDiscriminator(16000));
+handle_info({tcp, _Soc, <<"OrcaHeartBeat\n">>}, State) ->
+  {noreply, State};
 handle_info(_Info, State) ->
+  io:format("~n Got a Response:~n~p~nfrom Orca~n",[_Info]),
   {noreply, State}.
 
 %%---------------------------------------------------------------
