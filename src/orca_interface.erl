@@ -16,6 +16,9 @@
          code_change/3,
          terminate/2]).
 
+%%Just while coding/debugging:
+-compile([debug_info, export_all]).
+
 -define(SERVER, ?MODULE).
 
 %%===============================================================
@@ -30,30 +33,39 @@ start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 %%---------------------------------------------------------------
-%% Function make_connection()
-%% Description: connects to the local instance of ORCA
-%%                              on the default port (4667)
+%% Function make_connection(IP, Port)
+%% Description: connects to an instance of orca using the provided
+%% IP and port, if no port is given uses the default 4667, if no 
+%% IP is given uses localhost
 %%---------------------------------------------------------------
+
 %%@equiv make_connection("localhost")
 make_connection() ->
   make_connection("localhost").
-
-%%---------------------------------------------------------------
-%% Function make_connection(IP)
-%% Description: connects to the instance of ORCA at IP
-%%                              on the default port (4667)
-%%---------------------------------------------------------------
 %%@equiv make_connection(IP, 4667)
 make_connection(IP) ->
   make_connection(IP, 4667).
-
-%%---------------------------------------------------------------
-%% Function make_connection(IP, Port)
-%% Description: connects to the instance of ORCA at IP
-%%                              using on port PORT
-%%---------------------------------------------------------------
 make_connection(IP, Port) ->
   gen_server:cast(?SERVER, {make_connection, IP, Port}).
+
+%%---------------------------------------------------------------
+%% Functions: Wrap for ORCA's 927 set<Parameter> methods
+%% WARNING
+%% MAYBE THIS IS SUCH GOOD ERLANG... THOUGHTS?
+%% WARNING
+%%---------------------------------------------------------------
+setUpperDiscriminator(Value)->
+  callOrcaMCASet('setUpperDiscriminator:0', Value).
+setLowerDiscriminator(Value)->
+  callOrcaMCASet('setLowerDiscriminator:0', Value).
+setLtPreset(Value)->
+  callOrcaMCASet('setLtPreset:0', Value).
+setPresetCtrlReg()->
+  setPresetCtrlReg(8).
+setPresetCtrlReg(Value)->
+  callOrcaMCASet('setPresetCtrlReg:0', Value).
+callOrcaMCASet(Method, Value)->
+  gen_server:cast(?SERVER, {orcaMCASetMethod, Method, Value}).
 
 %%===============================================================
 %% gen_server callbacks
@@ -84,6 +96,12 @@ handle_cast({make_connection, IP, Port}, _State) ->
   Newstate = #state{socket=Socket},
   io:format("~p~n",[Socket]),
   {noreply, Newstate};
+handle_cast({setUpperDiscriminator, Value}, #state{socket=Soc}=State) ->
+  gen_tcp:send(Soc, lists:concat(["[ORMCA927Model setUpperDiscriminator:0 withValue:",Value,"]"])),
+  {noreply, State};
+handle_cast({orcaMCASetMethod, Method, WithValue}, #state{socket=Soc}=State) ->
+  gen_tcp:send(Soc, lists:concat(["[ORMCA927Model ",Method," withValue:",WithValue,"]"])),
+  {noreply, State};
 handle_cast(_Msg, State) ->
   {noreply, State}.
 
@@ -98,7 +116,8 @@ handle_info(hardset, #state{socket=Soc}=State) ->
   io:format("with state:~p~n",[State]),
   {noreply, State};
 handle_info(setULD, #state{socket=Soc}=State) ->
-  gen_tcp:send(Soc, orca927_mkcmds:setUpperDiscriminator(16000));
+  gen_tcp:send(Soc, orca927_mkcmds:setUpperDiscriminator(16000)),
+  {noreply, State};
 handle_info({tcp, _Soc, <<"OrcaHeartBeat\n">>}, State) ->
   {noreply, State};
 handle_info(_Info, State) ->
