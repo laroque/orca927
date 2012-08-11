@@ -1,73 +1,67 @@
 % generates a string to send to ORCA via telnet
 -module(orca927_mkcmds).
--export([orca_make_cmd/4]).
--export([setUpperDiscriminator/1, setLowerDiscriminator/1, setLtPreset/1, setPresetCtrlReg/0]).
--export([clearSpectrum/0, startAcquisition/0, stopAcquisition/0, writeSpectrum/1]).
--export([setComment/1]).
+
+-export([mca_set/1, mca_set/2,
+        mca_do/1, mca_do/2]).
 
 %don't actually export these once it is debugged.
--export([unpack_arg_list/1]).
+-compile([debug_info, export_all]).
 
 orca_make_cmd(TagString, Module, Method, Argslist)->
-%    Mthd=unpack_arg_list(Method),
-%    Args=unpack_arg_list(Argslist),
-    Result={"send", lists:concat([TagString, " = [", Module," ",
-           unpack_arg_list(Method), unpack_arg_list(Argslist),"]"])},
-    Result.
+    {"send", lists:concat([TagString, " = [", Module," ",
+           unpack_arg_list(Method), unpack_arg_list(Argslist),"]"])}.
 
+%%=========================================
+%% Some recursion to unpack arg:value pairs
+%%=========================================
+%The one you call
 unpack_arg_list(Arglist)->
     unpack_arg_list(Arglist,[]).
-
+%Base cases
 unpack_arg_list([{}],Acc)->
-    lists:reverse(Acc);
+    Acc;
 unpack_arg_list([],Acc)->
-    lists:reverse(Acc);
+    Acc;
+%recurse
 unpack_arg_list([{Name,Value}|T],Acc)->
-    Str = lists:concat([Name,":",Value," "]),
-    unpack_arg_list(T,[Str | Acc]).
+    Str = lists:concat([Name,":",Value," "]), unpack_arg_list(T,Acc ++ Str).
 
-% ORCA methods%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%===========================================
+%% ORCA MCA methods
+%%===========================================
 
-    % Run condition presets
-% Set the ULD value (2^14 - 1 is effectively no limit)
-setUpperDiscriminator(Val)->
-    orca_make_cmd(somerand, "ORMCA927Model", 
-      [{setUpperDiscriminator, 0}], [{withValue, Val}]).
-% Set the LLD value (0 is effecitvely no limit)
-setLowerDiscriminator(Val)->
-    orca_make_cmd(somerand, "ORMCA927Model",
-      [{setLowerDiscriminator, 0}], [{withValue, Val}]).
-% Set the total live time for a run
-setLtPreset(Val)->
-    orca_make_cmd(somerand, "ORMCA927Model",
-      [{setLtPreset, 0}], [{withValue, Val}]).
-% Enable auto-stop at live time
-    % if PresetCtrlReg == 8 then livetime condition is enabled,
-    %I don't what other possible values exist or what state they correspond with.
-setPresetCtrlReg()->
-    orca_make_cmd(somerand, "ORMCA927Model",
-      [{setPresetCtrlReg, 0}], [{withValue, 8}]).
+% Setters------------------------------------
+% default values (where reasonable):
+mca_set(upper_discrim)->
+    mca_set(upper_discrim, 16383);
+mca_set(lower_discrim)->
+    mca_set(lower_discrim, 0);
+mca_set(presetMode)->
+    mca_set(presetMode, 8).
+% user values:
+mca_set(upper_discrim, Value)->
+    mca_set([{setUpperDiscriminator, 0}], [{withValue, Value}]);
+mca_set(lower_discrim, Value)->
+    mca_set([{setLowerDiscriminator, 0}], [{withValue, Value}]);
+mca_set(ltTimeout, Value)->
+    mca_set([{setLtPreset, 0}], [{withValue, Value}]);
+mca_set(presetMode, Value)->
+    mca_set([{setPresetCtrlReg,0}], [{withValue, Value}]);
+mca_set(comment, Value)->
+    mca_set([{setComment, Value}], []);
+mca_set(Method, Argslist)->
+    orca_make_cmd("", "ORMCA927Model", Method, Argslist).
 
-    % Data taking control
-% Clear current spectrum
-clearSpectrum()->
-    orca_make_cmd(somerand, "ORMCA927Model",
-      [{clearSpectrum, 0}], []).
-% Start taking data
-startAcquisition()->
-    orca_make_cmd(somerand, "ORMCA927Model",
-      [{startAcquisition, 0}], []).
-% Stop taking data
-stopAcquisition()->
-    orca_make_cmd(somerand, "ORMCA927Model",
-      [{stopAcquisition, 0}], []).
-% Save current spectrum
-writeSpectrum(FileName)->
-    orca_make_cmd(somerand, "ORMCA927Model",
-      [{writeSpectrum, 0}], [{toFile,FileName}]).
-
-    % Other
-% Set the comment string
-setComment(Comment)->
-    orca_make_cmd(somerand, "ORMCA927Model",
-      [{setComment, Comment}], []).
+%% Doers-------------------------------------
+% a thing
+mca_do(clearSpectrum)->
+    mca_do([{clearSpectrum, 0}], []);
+mca_do(startSpectrum)->
+    mca_do([{startAcquisition, 0}], []);
+mca_do(stopSpectrum)->
+    mca_do([{stopAcquisition, 0}], []).
+% a thing with a param
+mca_do(saveSpectrum, Filename)->
+    mca_do([{writespectrum, 0}], [{toFile, Filename}]);
+mca_do(Methodlist, Argslist)->
+    orca_make_cmd("", "ORMCA927Model", Methodlist, Argslist).
