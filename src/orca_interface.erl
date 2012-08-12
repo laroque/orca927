@@ -49,23 +49,41 @@ make_connection(IP, Port) ->
   gen_server:cast(?SERVER, {make_connection, IP, Port}).
 
 %%---------------------------------------------------------------
-%% Functions: Wrap for ORCA's 927 set<Parameter> methods
-%% WARNING
-%% MAYBE THIS IS SUCH GOOD ERLANG... THOUGHTS?
-%% WARNING
+%% Functions: Wraps for ORCA MCA methods
 %%---------------------------------------------------------------
-setUpperDiscriminator(Value)->
-  callOrcaMCASet('setUpperDiscriminator:0', Value).
-setLowerDiscriminator(Value)->
-  callOrcaMCASet('setLowerDiscriminator:0', Value).
-setLtPreset(Value)->
-  callOrcaMCASet('setLtPreset:0', Value).
-setPresetCtrlReg()->
-  setPresetCtrlReg(8).
-setPresetCtrlReg(Value)->
-  callOrcaMCASet('setPresetCtrlReg:0', Value).
-callOrcaMCASet(Method, Value)->
-  gen_server:cast(?SERVER, {orcaMCASetMethod, Method, Value}).
+% Set a parameter =========================================
+% Default values (where reasonable):
+mca_set(upper_discrim) ->
+  mca_set(upper_discrim, 16383);
+mca_set(lower_discrim) ->
+  mca_set(lower_discrim, 0);
+mca_set(presetMode) ->
+  mca_set(presetMode, 8).
+% User supplied values:
+mca_set(upper_discrim, Value) ->
+  mca_set([{setUpperDiscriminator, 0}], [{withValue, Value}]);
+mca_set(lower_discrim, Value) ->
+  mca_set([{setLowerDiscriminator, 0}], [{withValue, Value}]);
+mca_set(ltTimeout, Value) ->
+  mca_set([{setLtPreset, 0}], [{withValue, Value}]);
+mca_set(presetMode, Value) ->
+  mca_set([{setPresetCtrlReg, 0}], [{withValue, Value}]);
+mca_set(comment, Value) ->
+  mca_set([{setComment, Value}], []);
+mca_set(Method, Argslist) ->
+  orca_make_cmd("", "ORMCA927Model", Method, Argslist).
+
+% Do a thing ==============================================
+mca_do(clearSpectrum) ->
+  mca_do([{clearSpectrum, 0}], []);
+mca_do(startSpectrum) ->
+  mca_do([{startAcquisition, 0}], []);
+mca_do(stopSpectrum) ->
+  mca_do([{stopAcquisition, 0}], []).
+mca_do(saveSpectrum, Filename) ->
+  mca_do([{writespectrum, 0}], [{toFile, Filename}]);
+mca_do(Methodlist, Argslist) ->
+  orca_make_cmd("", "ORMCA927Model", MethodList, Argslist).
 
 %%===============================================================
 %% gen_server callbacks
@@ -135,3 +153,19 @@ terminate(_Reason, _State) ->
 %%---------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
+
+%%===============================================================
+%% Internal Functions
+%%===============================================================
+orca_make_cmd("", Module, Method, Argslist) ->
+  {lists:concat([Tagstring, " = [", Module, " ",
+                 unpack_arg_list(Method), unpack_arg_list(Argslist), "]"])}.
+unpack_arg_list(Arglist) ->
+  unpack_arg_list([{}]), []);
+unpack_arg_list([{}], Acc) ->
+  Acc;
+unpack_arg_list([], Acc) ->
+  Acc;
+unpack_arg_list([{Name, Value}|T], Acc) ->
+  Str = lists:concat([Name, ":", Value, " "]),
+  unpack_arg_list(T, Acc ++ Str).
