@@ -81,7 +81,7 @@ mca_get(upper_discrim) ->
   mca_get([{getUpperDiscriminator, 0}]);
 mca_get(Method) ->
   Command = orca_make_cmd("get", "ORMCA927Model", Method, []),
-  gen_server:call(?SERVER, {mcaMethod, Command}).
+  gen_server:call(?SERVER, #request{cmd=Command}).
 
 % Do a thing ==============================================
 mca_do(clearSpectrum) ->
@@ -105,14 +105,18 @@ mca_do(Methodlist, Argslist) ->
 init(_Args) ->
   InitialState = #state{
     socket = 0,
-    queue = []
+    cmd = "",
+    queue = [],
+    waiting = false
   },
+  io:format("initial state:~p~n",[InitialState]),
   {ok, InitialState}.
 
 %%---------------------------------------------------------------
 %% Function: handle_call
 %%---------------------------------------------------------------
-handle_call(#request{cmd=Command}=Request, From, #state{socket=Soc, waiting=false}=State) ->
+handle_call(#request{cmd=Command}=Request, From,
+            #state{socket=Soc, cmd=_CMD, queue=_Q, waiting=false}=State) ->
   NewState = State#state{
     cmd = Request#request{sender=From},
     waiting = true
@@ -132,9 +136,9 @@ handle_call(_Request, _From, State) ->
 %%---------------------------------------------------------------
 %% Function: handle_cast
 %%---------------------------------------------------------------
-handle_cast({make_connection, IP, Port}, _State) ->
+handle_cast({make_connection, IP, Port}, State) ->
   {ok, Socket} = gen_tcp:connect(IP, Port, [binary, {packet, 0}]),
-  Newstate = #state{socket=Socket},
+  Newstate = State#state{socket=Socket},
   io:format("~p~n",[Socket]),
   {noreply, Newstate};
 handle_cast({mcaMethod, {Command}}, #state{socket=Soc}=State) ->
