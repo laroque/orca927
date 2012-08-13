@@ -2,7 +2,9 @@
 
 -behaviour(gen_server).
 
--record(state,{socket}).
+-record(state,{socket,cmd,queue,waiting}).
+
+-record(request,{cmd,sender}).
 
 %% API
 -export([start_link/0,
@@ -71,7 +73,15 @@ mca_set(presetMode, Value) ->
 mca_set(comment, Value) ->
   mca_set([{setComment, Value}], []);
 mca_set(Method, Argslist) ->
-  orca_make_cmd("", "ORMCA927Model", Method, Argslist).
+  Command = orca_make_cmd("", "ORMCA927Model", Method, Argslist),
+  gen_server:cast(?SERVER, {mcaMethod, Command}).
+
+% Get a parameter =========================================
+mca_get(upper_discrim) ->
+  mca_get([{getUpperDiscriminator, 0}]);
+mca_get(Method) ->
+  Command = orca_make_cmd("get", "ORMCA927Model", Method, []),
+  gen_server:call(?SERVER, {mcaMethod, Command}).
 
 % Do a thing ==============================================
 mca_do(clearSpectrum) ->
@@ -83,25 +93,38 @@ mca_do(stopSpectrum) ->
 mca_do(saveSpectrum, Filename) ->
   mca_do([{writespectrum, 0}], [{toFile, Filename}]);
 mca_do(Methodlist, Argslist) ->
-  orca_make_cmd("", "ORMCA927Model", MethodList, Argslist).
+  Command = orca_make_cmd("", "ORMCA927Model", Methodlist, Argslist),
+  gen_server:cast(?SERVER, {mcaMethod, Command}).
 
 %%===============================================================
 %% gen_server callbacks
 %%===============================================================
+%%---------------------------------------------------------------
+%% Function: init
+%%---------------------------------------------------------------
 init(_Args) ->
-  {ok, #state{socket=0}}.
+  InitialState = #state{
+    socket = 0,
+    queue = []
+  },
+  {ok, InitialState}.
 
 %%---------------------------------------------------------------
 %% Function: handle_call
 %%---------------------------------------------------------------
-listen() ->
-  receive {tcp, _Port, Data} -> Data after 500 -> timeout end.
-
-%handle_call({get_orca_response}, _From, State) ->
-%  Data = listen(),
-%  io:format(Data),
-%  Reply = ok,
-%  {reply, Reply, State}.
+handle_call(#request{cmd=Command}=Request, From, #state{socket=Soc, waiting=false}=State) ->
+  NewState = State#state{
+    cmd = Request#request{sender=From},
+    waiting = true
+  },
+  gen_tcp:send(Soc, Command),
+  erlang:send_after(2000, self(), tcp_timeout),
+  {noreply, NewState};
+handle_call(#request{}=Request, From, #state{queue=Q, waiting=true}=State) ->
+  NewState = State#state{
+    queue = Q ++ [Request#request{sender=From}]
+  },
+  {noreply, NewState};
 handle_call(_Request, _From, State) ->
   Reply = ok,
   {reply, Reply, State}.
@@ -114,11 +137,8 @@ handle_cast({make_connection, IP, Port}, _State) ->
   Newstate = #state{socket=Socket},
   io:format("~p~n",[Socket]),
   {noreply, Newstate};
-handle_cast({setUpperDiscriminator, Value}, #state{socket=Soc}=State) ->
-  gen_tcp:send(Soc, lists:concat(["[ORMCA927Model setUpperDiscriminator:0 withValue:",Value,"]"])),
-  {noreply, State};
-handle_cast({orcaMCASetMethod, Method, WithValue}, #state{socket=Soc}=State) ->
-  gen_tcp:send(Soc, lists:concat(["[ORMCA927Model ",Method," withValue:",WithValue,"]"])),
+handle_cast({mcaMethod, {Command}}, #state{socket=Soc}=State) ->
+  gen_tcp:send(Soc, Command),
   {noreply, State};
 handle_cast(_Msg, State) ->
   {noreply, State}.
@@ -126,18 +146,23 @@ handle_cast(_Msg, State) ->
 %%---------------------------------------------------------------
 %% Function: handle_info
 %%---------------------------------------------------------------
-handle_info(hi, State) ->
-  io:format("hey there~n"),
-  {noreply, State};
-handle_info(hardset, #state{socket=Soc}=State) ->
-  gen_tcp:send(Soc, "hdset=[ORMCA927Model setUpperDiscriminator:0 withValue:1000"),
-  io:format("with state:~p~n",[State]),
-  {noreply, State};
-handle_info(setULD, #state{socket=Soc}=State) ->
-  gen_tcp:send(Soc, orca927_mkcmds:setUpperDiscriminator(16000)),
-  {noreply, State};
 handle_info({tcp, _Soc, <<"OrcaHeartBeat\n">>}, State) ->
   {noreply, State};
+handle_info(tcp_timeout, #state{cmd=#request{sender=From}, socket=_S, queue=[]}=State) ->
+  gen_server:reply(From, {error, tcp_timeout}),
+  {noreply, State#state{waiting=false}};
+handle_info({tcp, Soc, Data}, #state{cmd=#request{sender=From}, socket=Soc, queue=[]}=State) ->
+  gen_server:reply(From, Data),
+  {noreply, State#state{waiting=false}};
+handle_info({tcp, Soc, Data}, #state{cmd=#request{sender=From}, socket=Soc, queue=[N|T]}=State) ->
+  Command=N#request.cmd,
+  gen_server:reply(From, Data),
+  gen_tcp:send(Soc, Command),
+  NewState = State#state{
+    cmd = N,
+    queue = T
+  },
+  {noreply, NewState};
 handle_info(_Info, State) ->
   io:format("~n Got a Response:~n~p~nfrom Orca~n",[_Info]),
   {noreply, State}.
@@ -157,15 +182,24 @@ code_change(_OldVsn, State, _Extra) ->
 %%===============================================================
 %% Internal Functions
 %%===============================================================
+%----------------------------------------------------------------
+% Generate a command string to send to orca via TCP socket
+%----------------------------------------------------------------
 orca_make_cmd("", Module, Method, Argslist) ->
+  {lists:concat(["[", Module, " ",
+                 unpack_arg_list(Method), unpack_arg_list(Argslist), "]"])};
+orca_make_cmd(Tagstring, Module, Method, Argslist) ->
   {lists:concat([Tagstring, " = [", Module, " ",
                  unpack_arg_list(Method), unpack_arg_list(Argslist), "]"])}.
+% the one you call
 unpack_arg_list(Arglist) ->
-  unpack_arg_list([{}]), []);
+  unpack_arg_list(Arglist, []).
+% base cases
 unpack_arg_list([{}], Acc) ->
   Acc;
 unpack_arg_list([], Acc) ->
   Acc;
+% recurse
 unpack_arg_list([{Name, Value}|T], Acc) ->
   Str = lists:concat([Name, ":", Value, " "]),
   unpack_arg_list(T, Acc ++ Str).
