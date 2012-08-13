@@ -66,9 +66,9 @@ mca_set(upper_discrim, Value) ->
   mca_set([{setUpperDiscriminator, 0}], [{withValue, Value}]);
 mca_set(lower_discrim, Value) ->
   mca_set([{setLowerDiscriminator, 0}], [{withValue, Value}]);
-mca_set(ltTimeout, Value) ->
+mca_set(ltPreset, Value) ->
   mca_set([{setLtPreset, 0}], [{withValue, Value}]);
-mca_set(presetMode, Value) ->
+mca_set(presetCtrlReg, Value) ->
   mca_set([{setPresetCtrlReg, 0}], [{withValue, Value}]);
 mca_set(comment, Value) ->
   mca_set([{setComment, Value}], []);
@@ -77,8 +77,16 @@ mca_set(Method, Argslist) ->
   gen_server:cast(?SERVER, {mcaMethod, Command}).
 
 % Get a parameter =========================================
-mca_get(upper_discrim) ->
-  mca_get([{getUpperDiscriminator, 0}]);
+mca_get(upperDiscriminator) ->
+  mca_get([{upperDiscriminator, 0}]);
+mca_get(lowerDiscriminator) ->
+  mca_get([{lowerDiscriminator, 0}]);
+mca_get(ltTimeout) ->
+  mca_get([{ltPreset}]);
+mca_get(presetCtrlReg) ->
+  mca_get([{presetCtrlReg}]);
+mca_get(comment) ->
+  mca_get([{comment}]);
 mca_get(Method) ->
   Command = orca_make_cmd("get", "ORMCA927Model", Method, []),
   gen_server:call(?SERVER, #request{cmd=Command}).
@@ -117,6 +125,8 @@ init(_Args) ->
 %%---------------------------------------------------------------
 handle_call(#request{cmd=Command}=Request, From,
             #state{socket=Soc, cmd=_CMD, queue=_Q, waiting=false}=State) ->
+  io:format("Initial state is:~p~n", [State]),
+  io:format("Command is:~p~n",[Command]),
   NewState = State#state{
     cmd = Request#request{sender=From},
     waiting = true
@@ -138,10 +148,10 @@ handle_call(_Request, _From, State) ->
 %%---------------------------------------------------------------
 handle_cast({make_connection, IP, Port}, State) ->
   {ok, Socket} = gen_tcp:connect(IP, Port, [binary, {packet, 0}]),
-  Newstate = State#state{socket=Socket},
+  NewState = State#state{socket=Socket},
   io:format("~p~n",[Socket]),
-  {noreply, Newstate};
-handle_cast({mcaMethod, {Command}}, #state{socket=Soc}=State) ->
+  {noreply, NewState};
+handle_cast({mcaMethod, Command}, #state{socket=Soc}=State) ->
   gen_tcp:send(Soc, Command),
   {noreply, State};
 handle_cast(_Msg, State) ->
@@ -190,11 +200,11 @@ code_change(_OldVsn, State, _Extra) ->
 % Generate a command string to send to orca via TCP socket
 %----------------------------------------------------------------
 orca_make_cmd("", Module, Method, Argslist) ->
-  {lists:concat(["[", Module, " ",
-                 unpack_arg_list(Method), unpack_arg_list(Argslist), "]"])};
+  lists:concat(["[", Module, " ",
+                 unpack_arg_list(Method), unpack_arg_list(Argslist), "]"]);
 orca_make_cmd(Tagstring, Module, Method, Argslist) ->
-  {lists:concat([Tagstring, " = [", Module, " ",
-                 unpack_arg_list(Method), unpack_arg_list(Argslist), "]"])}.
+  lists:concat([Tagstring, " = [", Module, " ",
+                 unpack_arg_list(Method), unpack_arg_list(Argslist), "]"]).
 % the one you call
 unpack_arg_list(Arglist) ->
   unpack_arg_list(Arglist, []).
