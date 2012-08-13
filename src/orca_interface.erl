@@ -55,14 +55,14 @@ make_connection(IP, Port) ->
 %%---------------------------------------------------------------
 % Set a parameter =========================================
 % Default values (where reasonable):
-mca_set(upper_discrim) ->
-  mca_set(upper_discrim, 16383);
-mca_set(lower_discrim) ->
-  mca_set(lower_discrim, 0);
-mca_set(presetMode) ->
-  mca_set(presetMode, 8).
+mca_set(upperDiscriminator) ->
+  mca_set(upperDiscriminator, 16383);
+mca_set(lowerDiscriminator) ->
+  mca_set(lowerDiscriminator, 0);
+mca_set(presetCtrlReg) ->
+  mca_set(presetCtrlReg, 8).
 % User supplied values:
-mca_set(upper_discrim, Value) ->
+mca_set(upperDiscriminator, Value) ->
   mca_set([{setUpperDiscriminator, 0}], [{withValue, Value}]);
 mca_set(lower_discrim, Value) ->
   mca_set([{setLowerDiscriminator, 0}], [{withValue, Value}]);
@@ -81,7 +81,7 @@ mca_get(upperDiscriminator) ->
   mca_get([{upperDiscriminator, 0}]);
 mca_get(lowerDiscriminator) ->
   mca_get([{lowerDiscriminator, 0}]);
-mca_get(ltTimeout) ->
+mca_get(ltPreset) ->
   mca_get([{ltPreset}]);
 mca_get(presetCtrlReg) ->
   mca_get([{presetCtrlReg}]);
@@ -117,7 +117,6 @@ init(_Args) ->
     queue = [],
     waiting = false
   },
-  io:format("initial state:~p~n",[InitialState]),
   {ok, InitialState}.
 
 %%---------------------------------------------------------------
@@ -125,8 +124,6 @@ init(_Args) ->
 %%---------------------------------------------------------------
 handle_call(#request{cmd=Command}=Request, From,
             #state{socket=Soc, cmd=_CMD, queue=_Q, waiting=false}=State) ->
-  io:format("Initial state is:~p~n", [State]),
-  io:format("Command is:~p~n",[Command]),
   NewState = State#state{
     cmd = Request#request{sender=From},
     waiting = true
@@ -149,7 +146,6 @@ handle_call(_Request, _From, State) ->
 handle_cast({make_connection, IP, Port}, State) ->
   {ok, Socket} = gen_tcp:connect(IP, Port, [binary, {packet, 0}]),
   NewState = State#state{socket=Socket},
-  io:format("~p~n",[Socket]),
   {noreply, NewState};
 handle_cast({mcaMethod, Command}, #state{socket=Soc}=State) ->
   gen_tcp:send(Soc, Command),
@@ -178,7 +174,7 @@ handle_info({tcp, Soc, Data}, #state{cmd=#request{sender=From}, socket=Soc, queu
   },
   {noreply, NewState};
 handle_info(_Info, State) ->
-  io:format("~n Got a Response:~n~p~nfrom Orca~n",[_Info]),
+  io:format("~n Got a message:~n~p~nfrom Orca~n",[_Info]),
   {noreply, State}.
 
 %%---------------------------------------------------------------
